@@ -1,0 +1,13 @@
+# 사내 설정(노션 DB ID, 내부 검토 기준표)
+app/config.local.js
+# 빌드 결과물에는 사내 설정이 합쳐져 있어요
+app/contract-review.html
+
+node_modules/
+.DS_Store
+
+# 계약서 원본·테스트 산출물은 절대 올리지 않아요
+*.docx
+*.doc
+*.pdf
+samples/

@@ -1,0 +1,19 @@
+{
+  "name": "contract-review-tests",
+  "version": "1.0.0",
+  "description": "수익화 계약 검토 툴 테스트",
+  "scripts": {
+    "smoke": "node smoke.js ../app/contract-review.html",
+    "docx": "node test-docx.js",
+    "pdf": "node test-pdf.js"
+  },
+  "type": "commonjs",
+  "dependencies": {
+    "@xmldom/xmldom": "^0.8.10",
+    "jsdom": "^24.1.3",
+    "jszip": "^3.10.1",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^3.11.174"
+  },
+  "private": true
+}
