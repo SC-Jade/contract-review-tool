@@ -77,8 +77,19 @@ const sample = {
     }
     if(prompt.includes('"check"')){
       calls.check++;
-      return { check: [{ g:"정산", k:"여신일", std:"Net 30", now:"15일", v:"good", ref:["5(a)(v)","없는라벨"] }, { g:"책임", k:"로고", std:"사전 동의", now:"동의 없음", v:"bad", ref:["12(g)"] }, { g:"기준표 밖 · AI 판단", k:"임의해지", std:"–", now:"없음", v:"bad", ref:["8(b)"] }],
+      /* 본문에 실제로 있는 조항 라벨을 근거로 써요(어떤 계약서로 테스트해도 동작) */
+      const labs = [...prompt.slice(prompt.lastIndexOf("[본문]")).matchAll(/\n\[([^\]\-][^\]]*)\] /g)].map(m => m[1]);
+      const L = i => labs[i % Math.max(labs.length, 1)] || "1";
+      return { check: [{ g:"정산", k:"여신일", std:"Net 30", now:"15일", v:"good", ref:[L(3),"없는라벨"] }, { g:"책임", k:"로고", std:"사전 동의", now:"동의 없음", v:"bad", ref:[L(6)] }, { g:"기준표 밖 · AI 판단", k:"임의해지", std:"–", now:"없음", v:"bad", ref:[L(1)] }],
         meta: { title:"Advertising Inventory Agreement", legalName:"Example Pte. Ltd.", effectiveDate:"" } };
+    }
+    if(prompt.includes("텍스트(이메일·메신저)로 피드백을 보냈다")){
+      calls.feedback = (calls.feedback || 0) + 1;
+      const body = prompt.slice(prompt.lastIndexOf("[본문]\n"));
+      const label = (body.match(/\n\[([^\]\-][^\]]*)\] /) || [])[1] || "";
+      return { items: [
+        { quote: "We can accept 45 days for the payment term.", cl: label, ask: label + " 조항 지급 기한을 45일로 하자는 요청", proposed: "Payment shall be made within 45 days.", proposedKo: "지급은 45일 이내에 한다.", v: "warn" },
+        { quote: "Please also reconsider the audit clause.", cl: "없는라벨", ask: "감사 조항 재검토 요청", proposed: "", proposedKo: "", v: "info" } ] };
     }
     if(prompt.includes("'파트너 DB'의 업체 속성값")){
       calls.partner = (calls.partner || 0) + 1;
@@ -168,6 +179,30 @@ const user = { me: async () => ({ id: "u_me", name: "제이드", avatarUrl: "dat
     await waitFor(() => { const v = S().versions.find(x => x.n === 6); return v && v.status && /done|error/.test(v.status.stage); }, "pipeline v6", 60000);
     const v6 = S().versions.find(x => x.n === 6);
     console.log("v6:", v6.kind, v6.side, v6.status.stage, v6.status.error || "", "comments:", v6.comments.map(c => c.cl).join(","), "diff items:", (await (async () => { await tick(300); return (S().history[6] || []).length; })()));
+  }
+  /* 텍스트로 받은 피드백 */
+  {
+    const before = { ...calls }, nT = S().versions.at(-1).n + 1;
+    d.querySelector("#upload-version").click(); await tick();
+    d.querySelector('#up-mode [data-m="text"]').click(); await tick();
+    console.log("text mode:", !d.querySelector("#up-text-box").hidden, "save disabled before typing:", d.querySelector("#up-save").disabled);
+    d.querySelector("#up-text").value = "Hi team,\nWe can accept 45 days for the payment term.\nPlease also reconsider the audit clause.\nThanks";
+    d.querySelector("#up-text").dispatchEvent(new w.Event("input", { bubbles: true }));
+    d.querySelector("#up-label").value = "이메일 회신";
+    d.querySelector("#up-save").click();
+    await waitFor(() => { const v = S().versions.find(x => x.n === nT); return v && v.status && /done|error/.test(v.status.stage); }, "pipeline text", 60000);
+    const vt = S().versions.find(x => x.n === nT);
+    await tick(300);
+    const hist = S().history[nT] || [];
+    console.log(`v${nT} text:`, vt.kind, vt.side, vt.file, vt.status.stage, vt.status.error || "", "| comments:", vt.comments.map(c => c.a + "@" + c.cl).join(", "), "| items:", hist.map(x => x.cl + (x.req ? "(req)" : "") + (x.new ? "+new" : "")).join(", "));
+    console.log("text calls delta:", JSON.stringify(Object.fromEntries(Object.keys(calls).map(k => [k, calls[k] - (before[k] || 0)]))));
+    const an = S().parts.analysis || {};
+    console.log("text check reused:", (an.check || []).length, "| lexusComment tail:", JSON.stringify((an.copies?.lexusComment || "").split("\n").slice(-5).join(" / ")));
+    d.getElementById("t-rounds").click(); await tick(50);
+    console.log("rounds text note:", !!d.querySelector("#p-rounds .notice"), "| quote boxes:", d.querySelectorAll("#p-rounds .change-q").length, "| req labels:", [...d.querySelectorAll("#p-rounds .cmp .label")].map(e => e.textContent).filter(t => /요청|현재 조항/.test(t)).slice(0, 2).join(" | "), "| empties:", [...d.querySelectorAll("#p-rounds .cmp .empty")].map(e => e.textContent).join(" | "));
+    d.getElementById("t-comments").click(); await tick(50);
+    console.log("comments raw box:", !!d.querySelector("#p-comments .fbraw"), "| threads:", d.querySelectorAll("#p-comments .thread").length);
+    console.log("timeline text chip:", [...d.querySelectorAll(".tl-head")].some(e => e.textContent.includes("텍스트")));
   }
   await tick(200);
   console.log("ai calls:", JSON.stringify(calls), "db:", JSON.stringify(DB.stats()));
